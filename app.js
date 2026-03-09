@@ -905,6 +905,55 @@ function updateLabels() {
       label.appendChild(txt);
       labelContainer.appendChild(label);
    }
+
+   // ---- Edge time labels at midpoints ----
+   const showingPath = pathFound || pathTracing;
+   for (const e of edges) {
+      if (!e.enabled) continue;
+      if (e.isPerp && !perpEnabled) continue;
+      if (showingPath) continue; // hide when path is displayed
+
+      const pa = planets[e.from].pos;
+      const pb = planets[e.to].pos;
+      let mx = (pa[0] + pb[0]) * 0.5;
+      let my = (pa[1] + pb[1]) * 0.5;
+      let mz = (pa[2] + pb[2]) * 0.5;
+
+      // Offset perp labels so they don't overlap ship labels
+      if (e.isPerp) {
+         const dx = pb[0] - pa[0], dy = pb[1] - pa[1], dz = pb[2] - pa[2];
+         const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+         const nx = dx / len, ny = dy / len, nz = dz / len;
+         let cx = ny * 1 - nz * 0, cy = nz * 0 - nx * 1, cz = nx * 0 - ny * 0;
+         const cl = Math.sqrt(cx * cx + cy * cy + cz * cz) || 1;
+         mx += (cx / cl) * 2.5; my += (cy / cl) * 2.5; mz += (cz / cl) * 2.5;
+      }
+
+      const pos = new THREE.Vector3(mx, my, mz);
+      const projected = pos.clone().applyMatrix4(mvpMatrix);
+      if (projected.z < -1 || projected.z > 1) continue;
+
+      const sx = (projected.x * 0.5 + 0.5) * w;
+      const sy = (1 - (projected.y * 0.5 + 0.5)) * h;
+      if (sx < -50 || sx > w + 50 || sy < -50 || sy > h + 50) continue;
+
+      const timeStr = (e.isPerp ? 'P:' : '') + formatTime(e.weight);
+      const edgeLabel = document.createElement('div');
+      edgeLabel.style.cssText = `
+         position:absolute;
+         left:${sx}px; top:${sy}px;
+         transform: translate(-50%, -50%);
+         background: ${e.isPerp ? 'rgba(40,10,80,0.7)' : 'rgba(20,20,20,0.6)'};
+         color: ${e.isPerp ? '#b48cff' : '#aaaaaa'};
+         padding: 1px 5px;
+         border-radius: 2px;
+         font-size: 10px;
+         font-family: 'Segoe UI', sans-serif;
+         white-space: nowrap;
+      `;
+      edgeLabel.textContent = timeStr;
+      labelContainer.appendChild(edgeLabel);
+   }
 }
 
 // ============================================================
