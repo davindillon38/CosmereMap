@@ -862,10 +862,13 @@ document.getElementById('btn-perp-only').addEventListener('click', () => {
 
 // Window resize
 window.addEventListener('resize', () => {
-   camera.aspect = window.innerWidth / window.innerHeight;
-   camera.updateProjectionMatrix();
-   renderer.setSize(window.innerWidth, window.innerHeight);
    if (typeof handleResize === 'function') handleResize();
+   if (typeof resizeRenderer === 'function') resizeRenderer();
+   else {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+   }
 });
 
 // ============================================================
@@ -877,7 +880,8 @@ document.getElementById('canvas-container').appendChild(labelContainer);
 
 function updateLabels() {
    labelContainer.innerHTML = '';
-   const w = window.innerWidth, h = window.innerHeight;
+   const rect = canvasContainer.getBoundingClientRect();
+   const w = rect.width, h = rect.height;
    const mvpMatrix = new THREE.Matrix4();
    mvpMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
 
@@ -974,16 +978,31 @@ function updateLabels() {
 const panel = document.getElementById('panel');
 const panelToggle = document.getElementById('panel-toggle');
 const panelClose = document.getElementById('panel-close');
+const canvasContainer = document.getElementById('canvas-container');
+
+function resizeRenderer() {
+   const rect = canvasContainer.getBoundingClientRect();
+   camera.aspect = rect.width / rect.height;
+   camera.updateProjectionMatrix();
+   renderer.setSize(rect.width, rect.height);
+}
 
 panelToggle.addEventListener('click', () => {
    panel.classList.add('open');
+   canvasContainer.classList.add('split');
    panelToggle.style.display = 'none';
+   // Resize after CSS transition
+   setTimeout(resizeRenderer, 320);
 });
 
 panelClose.addEventListener('click', () => {
    panel.classList.remove('open');
+   canvasContainer.classList.remove('split');
    // Re-show toggle after transition
-   setTimeout(() => { panelToggle.style.display = ''; }, 300);
+   setTimeout(() => {
+      panelToggle.style.display = '';
+      resizeRenderer();
+   }, 320);
 });
 
 // On desktop, hide close button; on mobile, panel starts hidden
@@ -991,6 +1010,7 @@ function handleResize() {
    const isMobile = window.innerWidth <= 768;
    if (!isMobile) {
       panel.classList.remove('open');
+      canvasContainer.classList.remove('split');
       panelToggle.style.display = 'none';
       panelClose.style.display = 'none';
    } else {
