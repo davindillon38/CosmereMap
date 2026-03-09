@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cosmere Star Map - Dijkstra Pathfinder</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+   background: #0a0a12;
+   color: #e0e0e0;
+   overflow: hidden;
+   height: 100vh;
+}
+#canvas-container {
+   position: absolute;
+   top: 0; left: 0; right: 0; bottom: 0;
+}
+canvas { display: block; }
+
+/* Side panel */
+#panel {
+   position: absolute;
+   top: 10px; right: 10px;
+   width: 360px;
+   max-height: calc(100vh - 20px);
+   overflow-y: auto;
+   background: rgba(15, 15, 30, 0.92);
+   border: 1px solid rgba(100, 80, 200, 0.3);
+   border-radius: 8px;
+   padding: 16px;
+   backdrop-filter: blur(10px);
+   z-index: 10;
+}
+#panel::-webkit-scrollbar { width: 6px; }
+#panel::-webkit-scrollbar-track { background: transparent; }
+#panel::-webkit-scrollbar-thumb { background: rgba(100, 80, 200, 0.4); border-radius: 3px; }
+
+h2 { color: #b8a0ff; margin-bottom: 8px; font-size: 18px; }
+h3 { color: #8888cc; margin: 12px 0 6px; font-size: 14px; border-bottom: 1px solid rgba(100,80,200,0.2); padding-bottom: 4px; }
+
+.desc {
+   font-size: 12px;
+   color: #888;
+   margin-bottom: 12px;
+   line-height: 1.4;
+}
+
+label { font-size: 13px; color: #aaa; display: block; margin-bottom: 2px; }
+select, input[type=range] { width: 100%; margin-bottom: 8px; }
+select {
+   background: #1a1a2e;
+   color: #e0e0e0;
+   border: 1px solid #333;
+   padding: 6px 8px;
+   border-radius: 4px;
+   font-size: 13px;
+}
+input[type=range] {
+   -webkit-appearance: none;
+   height: 6px;
+   background: #2a2a4e;
+   border-radius: 3px;
+   outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+   -webkit-appearance: none;
+   width: 14px; height: 14px;
+   border-radius: 50%;
+   background: #7755cc;
+   cursor: pointer;
+}
+.slider-row {
+   display: flex;
+   align-items: center;
+   gap: 8px;
+   margin-bottom: 8px;
+}
+.slider-row label { flex: 0 0 auto; margin: 0; white-space: nowrap; }
+.slider-row input { flex: 1; margin: 0; }
+.slider-val { font-size: 12px; color: #7755cc; min-width: 55px; text-align: right; }
+
+button {
+   width: 100%;
+   padding: 10px;
+   margin: 4px 0;
+   background: linear-gradient(135deg, #5533aa, #7755cc);
+   color: white;
+   border: none;
+   border-radius: 5px;
+   font-size: 14px;
+   cursor: pointer;
+   transition: all 0.2s;
+}
+button:hover { background: linear-gradient(135deg, #6644bb, #8866dd); transform: translateY(-1px); }
+button:active { transform: translateY(0); }
+button.secondary { background: #2a2a4e; }
+button.secondary:hover { background: #3a3a5e; }
+
+.btn-row { display: flex; gap: 6px; }
+.btn-row button { flex: 1; padding: 6px; font-size: 12px; }
+
+.status {
+   padding: 8px;
+   border-radius: 4px;
+   margin: 8px 0;
+   font-size: 13px;
+}
+.status.exploring { background: rgba(30, 100, 200, 0.2); border: 1px solid rgba(30, 100, 200, 0.4); }
+.status.tracing { background: rgba(200, 150, 0, 0.2); border: 1px solid rgba(200, 150, 0, 0.4); }
+.status.found { background: rgba(30, 200, 30, 0.15); border: 1px solid rgba(30, 200, 30, 0.3); }
+.status.notfound { background: rgba(200, 30, 30, 0.15); border: 1px solid rgba(200, 30, 30, 0.3); }
+
+progress {
+   width: 100%;
+   height: 8px;
+   -webkit-appearance: none;
+   appearance: none;
+   margin: 4px 0;
+}
+progress::-webkit-progress-bar { background: #1a1a2e; border-radius: 4px; }
+progress::-webkit-progress-value { background: #7755cc; border-radius: 4px; }
+
+.route-result {
+   background: rgba(30, 200, 30, 0.1);
+   border: 1px solid rgba(30, 200, 30, 0.25);
+   border-radius: 4px;
+   padding: 8px;
+   margin: 8px 0;
+   font-size: 13px;
+   line-height: 1.5;
+}
+.route-result .hop { color: #aaa; font-size: 11px; }
+.route-result .hop.shadesmar { color: #66aaff; }
+.route-result .hop.ship { color: #9944cc; }
+.route-result .total { color: #44ee44; font-weight: bold; margin-top: 4px; }
+
+.planet-legend {
+   display: flex; align-items: center; gap: 6px;
+   padding: 3px 0; font-size: 12px; cursor: pointer;
+}
+.planet-legend:hover { background: rgba(100, 80, 200, 0.1); }
+.planet-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.planet-name { color: #ddd; }
+.planet-series { color: #777; font-size: 11px; }
+.planet-perp { color: #b8a0ff; }
+
+.tooltip {
+   display: none;
+   position: fixed;
+   background: rgba(10, 10, 25, 0.95);
+   border: 1px solid rgba(100, 80, 200, 0.4);
+   border-radius: 6px;
+   padding: 10px;
+   font-size: 12px;
+   max-width: 280px;
+   line-height: 1.4;
+   z-index: 100;
+   pointer-events: none;
+}
+.tooltip.visible { display: block; }
+.tooltip h4 { color: #b8a0ff; margin-bottom: 4px; }
+.tooltip .series-tag { color: #7755cc; font-size: 11px; }
+.tooltip .perp-note { color: #aaa; margin-top: 6px; }
+
+.checkbox-row {
+   display: flex; align-items: center; gap: 6px;
+   margin-bottom: 4px; font-size: 13px;
+}
+.checkbox-row input[type=checkbox] {
+   width: auto; margin: 0;
+   accent-color: #7755cc;
+}
+
+.collapsible {
+   cursor: pointer;
+   user-select: none;
+}
+.collapsible::before {
+   content: '\25B6';
+   display: inline-block;
+   margin-right: 6px;
+   transition: transform 0.2s;
+   font-size: 10px;
+}
+.collapsible.open::before { transform: rotate(90deg); }
+.collapsible-content { display: none; padding-left: 4px; }
+.collapsible-content.open { display: block; }
+
+/* Routes table */
+#routes-table {
+   width: 100%;
+   border-collapse: collapse;
+   font-size: 11px;
+   margin-top: 6px;
+}
+#routes-table th, #routes-table td {
+   padding: 2px 4px;
+   border: 1px solid rgba(100, 80, 200, 0.15);
+   text-align: center;
+}
+#routes-table th { background: rgba(100, 80, 200, 0.15); color: #b8a0ff; }
+#routes-table td.self { color: #444; }
+#routes-table td.na { color: #ff5555; }
+
+#credit {
+   position: absolute;
+   bottom: 8px; left: 8px;
+   font-size: 11px; color: #444;
+   z-index: 5;
+}
+#credit a { color: #6644aa; }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div id="panel">
+   <h2>Cosmere Star Map</h2>
+   <p class="desc">
+      Navigate the Cosmere in the space age era!
+      Scadrian Allomantic FTL ships and Shadesmar perpendicularities
+      provide two ways to travel between worlds.
+      Use Dijkstra's algorithm to find the fastest route.
+   </p>
+
+   <h3>Route Planning</h3>
+   <label>Start Planet</label>
+   <select id="start-planet"></select>
+   <label>End Planet</label>
+   <select id="end-planet"></select>
+
+   <h3>Travel Parameters</h3>
+   <div class="slider-row">
+      <label>Ship Speed</label>
+      <input type="range" id="ship-speed" min="1" max="50" step="0.5" value="10">
+      <span class="slider-val" id="ship-speed-val">10.0 ly/yr</span>
+   </div>
+   <div class="slider-row">
+      <label>Shadesmar</label>
+      <input type="range" id="shadesmar-scale" min="0.1" max="5" step="0.1" value="1">
+      <span class="slider-val" id="shadesmar-scale-val">1.0x</span>
+   </div>
+
+   <div class="checkbox-row">
+      <input type="checkbox" id="perp-enabled" checked>
+      <label for="perp-enabled" style="margin:0">Enable Perpendicularities</label>
+   </div>
+
+   <h3>Animation</h3>
+   <div class="slider-row">
+      <label>Dijkstra</label>
+      <input type="range" id="anim-speed" min="0.05" max="20" step="0.05" value="5">
+      <span class="slider-val" id="anim-speed-val">5.00 st/s</span>
+   </div>
+   <div class="slider-row">
+      <label>Path Trace</label>
+      <input type="range" id="trace-speed" min="0.05" max="10" step="0.05" value="2">
+      <span class="slider-val" id="trace-speed-val">2.00 sg/s</span>
+   </div>
+
+   <button id="btn-find">Find Fastest Route</button>
+   <button id="btn-reset" class="secondary">Reset</button>
+   <button id="btn-skip" class="secondary" style="display:none">Skip to Result</button>
+
+   <div id="anim-status"></div>
+
+   <div id="route-result"></div>
+
+   <h3 class="collapsible" id="toggle-edges">Edge Visibility</h3>
+   <div class="collapsible-content" id="edges-content">
+      <div class="btn-row">
+         <button class="secondary" id="btn-all-on">All On</button>
+         <button class="secondary" id="btn-all-off">All Off</button>
+         <button class="secondary" id="btn-ship-only">Ship Only</button>
+         <button class="secondary" id="btn-perp-only">Perp Only</button>
+      </div>
+      <div id="edge-toggles" style="margin-top: 8px; max-height: 250px; overflow-y: auto;"></div>
+   </div>
+
+   <h3 class="collapsible open" id="toggle-planets">Planets</h3>
+   <div class="collapsible-content open" id="planets-content"></div>
+
+   <h3 class="collapsible" id="toggle-routes">Fastest Routes Table</h3>
+   <div class="collapsible-content" id="routes-content">
+      <div style="overflow-x: auto;">
+         <table id="routes-table"></table>
+      </div>
+      <p style="font-size:11px; color:#666; margin-top:4px;">Uses current Ship Speed &amp; Shadesmar settings.</p>
+   </div>
+</div>
+
+<div id="tooltip" class="tooltip"></div>
+
+<div id="credit">
+   Cosmere Star Map &mdash; Dijkstra Pathfinder
+   | Based on Brandon Sanderson's <a href="https://www.brandonsanderson.com/" target="_blank">Cosmere</a>
+   | Built with Three.js
+</div>
+
+<script type="importmap">
+{
+   "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+   }
+}
+</script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
