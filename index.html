@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Cosmere Star Map - Dijkstra Pathfinder</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -12,12 +12,31 @@ body {
    color: #e0e0e0;
    overflow: hidden;
    height: 100vh;
+   touch-action: none;
 }
 #canvas-container {
    position: absolute;
    top: 0; left: 0; right: 0; bottom: 0;
 }
 canvas { display: block; }
+
+/* Toggle button for mobile */
+#panel-toggle {
+   display: none;
+   position: absolute;
+   top: 10px; right: 10px;
+   width: 44px; height: 44px;
+   background: rgba(15, 15, 30, 0.92);
+   border: 1px solid rgba(100, 80, 200, 0.4);
+   border-radius: 8px;
+   color: #b8a0ff;
+   font-size: 22px;
+   cursor: pointer;
+   z-index: 20;
+   backdrop-filter: blur(10px);
+   line-height: 44px;
+   text-align: center;
+}
 
 /* Side panel */
 #panel {
@@ -32,6 +51,7 @@ canvas { display: block; }
    padding: 16px;
    backdrop-filter: blur(10px);
    z-index: 10;
+   transition: transform 0.3s ease;
 }
 #panel::-webkit-scrollbar { width: 6px; }
 #panel::-webkit-scrollbar-track { background: transparent; }
@@ -55,18 +75,18 @@ select {
    border: 1px solid #333;
    padding: 6px 8px;
    border-radius: 4px;
-   font-size: 13px;
+   font-size: 14px;
 }
 input[type=range] {
    -webkit-appearance: none;
-   height: 6px;
+   height: 8px;
    background: #2a2a4e;
-   border-radius: 3px;
+   border-radius: 4px;
    outline: none;
 }
 input[type=range]::-webkit-slider-thumb {
    -webkit-appearance: none;
-   width: 14px; height: 14px;
+   width: 20px; height: 20px;
    border-radius: 50%;
    background: #7755cc;
    cursor: pointer;
@@ -83,7 +103,7 @@ input[type=range]::-webkit-slider-thumb {
 
 button {
    width: 100%;
-   padding: 10px;
+   padding: 12px;
    margin: 4px 0;
    background: linear-gradient(135deg, #5533aa, #7755cc);
    color: white;
@@ -92,14 +112,16 @@ button {
    font-size: 14px;
    cursor: pointer;
    transition: all 0.2s;
+   -webkit-tap-highlight-color: transparent;
 }
 button:hover { background: linear-gradient(135deg, #6644bb, #8866dd); transform: translateY(-1px); }
-button:active { transform: translateY(0); }
+button:active { transform: translateY(0); background: linear-gradient(135deg, #4422aa, #6644bb); }
 button.secondary { background: #2a2a4e; }
 button.secondary:hover { background: #3a3a5e; }
+button.secondary:active { background: #1a1a3e; }
 
 .btn-row { display: flex; gap: 6px; }
-.btn-row button { flex: 1; padding: 6px; font-size: 12px; }
+.btn-row button { flex: 1; padding: 8px; font-size: 12px; }
 
 .status {
    padding: 8px;
@@ -138,7 +160,7 @@ progress::-webkit-progress-value { background: #7755cc; border-radius: 4px; }
 
 .planet-legend {
    display: flex; align-items: center; gap: 6px;
-   padding: 3px 0; font-size: 12px; cursor: pointer;
+   padding: 4px 2px; font-size: 12px; cursor: pointer;
 }
 .planet-legend:hover { background: rgba(100, 80, 200, 0.1); }
 .planet-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
@@ -165,11 +187,11 @@ progress::-webkit-progress-value { background: #7755cc; border-radius: 4px; }
 .tooltip .perp-note { color: #aaa; margin-top: 6px; }
 
 .checkbox-row {
-   display: flex; align-items: center; gap: 6px;
+   display: flex; align-items: center; gap: 8px;
    margin-bottom: 4px; font-size: 13px;
 }
 .checkbox-row input[type=checkbox] {
-   width: auto; margin: 0;
+   width: 18px; height: 18px; margin: 0;
    accent-color: #7755cc;
 }
 
@@ -211,14 +233,74 @@ progress::-webkit-progress-value { background: #7755cc; border-radius: 4px; }
    z-index: 5;
 }
 #credit a { color: #6644aa; }
+
+/* ---- Mobile styles ---- */
+@media (max-width: 768px) {
+   #panel-toggle { display: block; }
+
+   #panel {
+      position: absolute;
+      top: 0; right: 0;
+      width: 100%;
+      max-width: 360px;
+      height: 100vh;
+      max-height: 100vh;
+      border-radius: 0;
+      padding: 16px 16px 80px;
+      transform: translateX(100%);
+   }
+   #panel.open { transform: translateX(0); }
+
+   h2 { font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+
+   #panel-close {
+      display: inline-block;
+      background: none;
+      border: 1px solid rgba(100, 80, 200, 0.3);
+      color: #b8a0ff;
+      width: 36px; height: 36px;
+      padding: 0;
+      font-size: 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      line-height: 34px;
+      text-align: center;
+   }
+
+   select { font-size: 16px; padding: 10px 8px; } /* prevent iOS zoom */
+   button { padding: 14px; font-size: 15px; }
+   .btn-row button { padding: 10px; font-size: 13px; }
+   .planet-legend { padding: 6px 2px; }
+   .slider-row { margin-bottom: 10px; }
+
+   input[type=range] { height: 10px; }
+   input[type=range]::-webkit-slider-thumb { width: 24px; height: 24px; }
+
+   .checkbox-row input[type=checkbox] { width: 22px; height: 22px; }
+
+   #credit { font-size: 10px; bottom: 4px; left: 4px; right: 60px; }
+}
+
+/* Landscape phone tweaks */
+@media (max-width: 768px) and (max-height: 500px) {
+   #panel { padding: 10px 12px 40px; }
+   h2 { font-size: 14px; }
+   h3 { margin: 8px 0 4px; font-size: 13px; }
+   button { padding: 10px; font-size: 13px; }
+}
 </style>
 </head>
 <body>
 
 <div id="canvas-container"></div>
 
+<button id="panel-toggle" aria-label="Open controls">&#9776;</button>
+
 <div id="panel">
-   <h2>Cosmere Star Map</h2>
+   <h2>
+      Cosmere Star Map
+      <button id="panel-close" aria-label="Close panel">&times;</button>
+   </h2>
    <p class="desc">
       Navigate the Cosmere in the space age era!
       Scadrian Allomantic FTL ships and Shadesmar perpendicularities

@@ -570,16 +570,27 @@ function buildPlanetLegend() {
       nameSpan.textContent = text;
       row.appendChild(nameSpan);
 
-      // Hover tooltip
-      row.addEventListener('mouseenter', (ev) => {
+      // Hover/tap tooltip
+      const showTooltip = (ev) => {
          const tt = document.getElementById('tooltip');
          tt.innerHTML = `<h4>${p.name}</h4><span class="series-tag">${p.series} \u2014 ${p.system} system</span><div class="perp-note" style="margin-top:6px">${p.hasPerp ? '\u2728 ' : ''}${p.perpNote}</div>`;
          tt.classList.add('visible');
-         tt.style.left = (ev.clientX - 290) + 'px';
-         tt.style.top = ev.clientY + 'px';
-      });
-      row.addEventListener('mouseleave', () => {
+         const x = ev.clientX || (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 100);
+         const y = ev.clientY || (ev.touches && ev.touches[0] ? ev.touches[0].clientY : 100);
+         // Position tooltip: prefer left of cursor, but keep on screen
+         const ttLeft = Math.max(4, Math.min(x - 290, window.innerWidth - 290));
+         tt.style.left = ttLeft + 'px';
+         tt.style.top = Math.max(4, y - 20) + 'px';
+      };
+      const hideTooltip = () => {
          document.getElementById('tooltip').classList.remove('visible');
+      };
+      row.addEventListener('mouseenter', showTooltip);
+      row.addEventListener('mouseleave', hideTooltip);
+      row.addEventListener('click', (ev) => {
+         const tt = document.getElementById('tooltip');
+         if (tt.classList.contains('visible')) { hideTooltip(); }
+         else { showTooltip(ev); }
       });
 
       container.appendChild(row);
@@ -854,6 +865,7 @@ window.addEventListener('resize', () => {
    camera.aspect = window.innerWidth / window.innerHeight;
    camera.updateProjectionMatrix();
    renderer.setSize(window.innerWidth, window.innerHeight);
+   if (typeof handleResize === 'function') handleResize();
 });
 
 // ============================================================
@@ -955,6 +967,40 @@ function updateLabels() {
       labelContainer.appendChild(edgeLabel);
    }
 }
+
+// ============================================================
+// MOBILE PANEL TOGGLE
+// ============================================================
+const panel = document.getElementById('panel');
+const panelToggle = document.getElementById('panel-toggle');
+const panelClose = document.getElementById('panel-close');
+
+panelToggle.addEventListener('click', () => {
+   panel.classList.add('open');
+   panelToggle.style.display = 'none';
+});
+
+panelClose.addEventListener('click', () => {
+   panel.classList.remove('open');
+   // Re-show toggle after transition
+   setTimeout(() => { panelToggle.style.display = ''; }, 300);
+});
+
+// On desktop, hide close button; on mobile, panel starts hidden
+function handleResize() {
+   const isMobile = window.innerWidth <= 768;
+   if (!isMobile) {
+      panel.classList.remove('open');
+      panelToggle.style.display = 'none';
+      panelClose.style.display = 'none';
+   } else {
+      panelClose.style.display = '';
+      if (!panel.classList.contains('open')) {
+         panelToggle.style.display = '';
+      }
+   }
+}
+handleResize();
 
 // ============================================================
 // INIT & RENDER LOOP
