@@ -122,6 +122,7 @@ let currentPrev = [];
 let currentVisited = [];
 let currentNode = -1;
 let relaxedEdges = [];
+let pendingEdges = [];
 
 // ============================================================
 // THREE.JS SETUP
@@ -255,12 +256,16 @@ function rebuildEdgeGeometry() {
       positions.push(pb[0] + offX, pb[1] + offY, pb[2] + offZ);
 
       let r, g, b;
-      // Check if relaxed in current step
+      // Check if relaxed or pending in current step
       const isRelaxed = relaxedEdges.some(([a, b2]) =>
+         (a === e.from && b2 === e.to) || (a === e.to && b2 === e.from));
+      const isPending = pendingEdges.some(([a, b2]) =>
          (a === e.from && b2 === e.to) || (a === e.to && b2 === e.from));
 
       if (isRelaxed) {
          r = 1.0; g = 0.6; b = 0.0; // orange — relaxing
+      } else if (isPending) {
+         r = 0.6; g = 0.5; b = 0.1; // dim yellow — pending lookup
       } else if (animating && currentVisited[e.from] && currentVisited[e.to]) {
          r = 0.1; g = 0.7; b = 0.2; // green — explored
       } else if (e.isPerp) {
@@ -354,6 +359,7 @@ function resetDijkstra() {
    dijkstraSteps = [];
    finalPath = [];
    relaxedEdges = [];
+   pendingEdges = [];
    const n = planets.length;
    currentDist = new Array(n).fill(Infinity);
    currentPrev = new Array(n).fill(-1);
@@ -387,8 +393,8 @@ function runDijkstra() {
          break;
       }
 
-      // Push one step per neighbor relaxation so the animation shows them one at a time
-      let anyRelaxed = false;
+      // Collect all unvisited neighbors as pending
+      const neighbors = [];
       for (const e of edges) {
          if (!e.enabled) continue;
          if (e.isPerp && !perpEnabled) continue;
@@ -397,18 +403,34 @@ function runDijkstra() {
          else if (e.to === u) nb = e.from;
          else continue;
          if (visited[nb]) continue;
-         const nd = dist[u] + e.weight;
-         if (nd < dist[nb]) { dist[nb] = nd; prev[nb] = u; }
-         dijkstraSteps.push({
-            currentNode: u, dist: [...dist], prev: [...prev], visited: [...visited], relaxedEdges: [[u, nb]]
-         });
-         anyRelaxed = true;
+         neighbors.push({ edge: e, nb });
       }
-      // If no neighbors were relaxed, still push a step showing we visited this node
-      if (!anyRelaxed) {
+
+      const allPending = neighbors.map(({ nb }) => [u, nb]);
+
+      if (neighbors.length === 0) {
+         // No neighbors — just show we visited this node
          dijkstraSteps.push({
-            currentNode: u, dist: [...dist], prev: [...prev], visited: [...visited], relaxedEdges: []
+            currentNode: u, dist: [...dist], prev: [...prev], visited: [...visited],
+            relaxedEdges: [], pendingEdges: []
          });
+      } else {
+         // First step: highlight all pending neighbors
+         dijkstraSteps.push({
+            currentNode: u, dist: [...dist], prev: [...prev], visited: [...visited],
+            relaxedEdges: [], pendingEdges: allPending
+         });
+         // Then one step per relaxation, shrinking the pending list as we go
+         for (let i = 0; i < neighbors.length; i++) {
+            const { edge: e, nb } = neighbors[i];
+            const nd = dist[u] + e.weight;
+            if (nd < dist[nb]) { dist[nb] = nd; prev[nb] = u; }
+            const remaining = allPending.slice(i + 1);
+            dijkstraSteps.push({
+               currentNode: u, dist: [...dist], prev: [...prev], visited: [...visited],
+               relaxedEdges: [[u, nb]], pendingEdges: remaining
+            });
+         }
       }
    }
 
@@ -443,6 +465,7 @@ function stepAnimation(dt) {
          currentVisited = s.visited;
          currentNode = s.currentNode;
          relaxedEdges = s.relaxedEdges;
+         pendingEdges = s.pendingEdges || [];
          rebuildEdgeGeometry();
          updatePlanetVisuals();
          animStep++;
@@ -451,6 +474,7 @@ function stepAnimation(dt) {
       if (animStep >= dijkstraSteps.length) {
          animating = false;
          relaxedEdges = [];
+         pendingEdges = [];
          rebuildEdgeGeometry();
 
          if (finalPath.length > 0) {
@@ -704,7 +728,8 @@ function updateStatusUI() {
       status.innerHTML = `<div class="status exploring">
          <strong>PHASE 1: Dijkstra Exploration</strong><br>
          Step ${animStep} / ${dijkstraSteps.length} \u2014 Visiting: ${nodeText}
-         ${relaxedEdges.length ? `<br><span style="color:#ffaa00">Relaxing edge to ${planets[relaxedEdges[0][1]].name}...</span>` : ''}
+         ${pendingEdges.length && !relaxedEdges.length ? `<br><span style="color:#b89a20">Checking ${pendingEdges.length} neighbor${pendingEdges.length > 1 ? 's' : ''}...</span>` : ''}
+         ${relaxedEdges.length ? `<br><span style="color:#ffaa00">Relaxing edge to ${planets[relaxedEdges[0][1]].name}...</span>${pendingEdges.length ? ` <span style="color:#b89a20">(${pendingEdges.length} remaining)</span>` : ''}` : ''}
          <progress value="${pct}" max="100"></progress>
       </div>`;
       result.innerHTML = '';
@@ -830,6 +855,7 @@ document.getElementById('btn-skip').addEventListener('click', () => {
       pathTracing = false;
       pathFound = finalPath.length > 0;
       relaxedEdges = [];
+      pendingEdges = [];
       if (dijkstraSteps.length > 0) {
          const s = dijkstraSteps[dijkstraSteps.length - 1];
          currentDist = s.dist;
