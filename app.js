@@ -387,7 +387,8 @@ function runDijkstra() {
          break;
       }
 
-      const relaxed = [];
+      // Push one step per neighbor relaxation so the animation shows them one at a time
+      let anyRelaxed = false;
       for (const e of edges) {
          if (!e.enabled) continue;
          if (e.isPerp && !perpEnabled) continue;
@@ -396,14 +397,19 @@ function runDijkstra() {
          else if (e.to === u) nb = e.from;
          else continue;
          if (visited[nb]) continue;
-         relaxed.push([u, nb]);
          const nd = dist[u] + e.weight;
          if (nd < dist[nb]) { dist[nb] = nd; prev[nb] = u; }
+         dijkstraSteps.push({
+            currentNode: u, dist: [...dist], prev: [...prev], visited: [...visited], relaxedEdges: [[u, nb]]
+         });
+         anyRelaxed = true;
       }
-
-      dijkstraSteps.push({
-         currentNode: u, dist: [...dist], prev: [...prev], visited: [...visited], relaxedEdges: relaxed
-      });
+      // If no neighbors were relaxed, still push a step showing we visited this node
+      if (!anyRelaxed) {
+         dijkstraSteps.push({
+            currentNode: u, dist: [...dist], prev: [...prev], visited: [...visited], relaxedEdges: []
+         });
+      }
    }
 
    // Build final path
@@ -698,7 +704,7 @@ function updateStatusUI() {
       status.innerHTML = `<div class="status exploring">
          <strong>PHASE 1: Dijkstra Exploration</strong><br>
          Step ${animStep} / ${dijkstraSteps.length} \u2014 Visiting: ${nodeText}
-         ${relaxedEdges.length ? `<br><span style="color:#ffaa00">Relaxing ${relaxedEdges.length} edges...</span>` : ''}
+         ${relaxedEdges.length ? `<br><span style="color:#ffaa00">Relaxing edge to ${planets[relaxedEdges[0][1]].name}...</span>` : ''}
          <progress value="${pct}" max="100"></progress>
       </div>`;
       result.innerHTML = '';
